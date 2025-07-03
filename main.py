@@ -5,39 +5,59 @@ from garminconnect import (
     GarminConnectAuthenticationError,
 )
 import datetime
-import requests
+
+def processFitFiles(credentials, activities):
+    try:
+        ACTIVITIES_COUNT = os.getenv("ACTIVITIES_COUNT")
+
+        email = credentials[1]
+        password = credentials[2]
+        path = credentials[3]
+        client = Garmin(email, password)
+        client.login()
+        activities = client.get_activities(0, ACTIVITIES_COUNT)    # Get last ACTIVITIES_COUNT activities
+        write = False
+        
+        if os.path.exists('activityIdList.txt'):
+            with open('activityIdList.txt') as f:
+                downloadedIds = [line.strip() for line in f if line.strip()]
+        else:
+            downloadedIds = []
+        
+        for activity in activities:
+            activityId = str(activity["activityId"])
+
+            if activityId in downloadedIds : continue
+            
+            write = True
+
+            filename = f"{activityId}.fit"
+
+            # Get .FIT file
+            data = client.download_activity(activityId, dl_fmt=client.ActivityDownloadFormat.ORIGINAL)
+                       
+            # Do not owerwrite
+            if os.path.exists(f"{path/filename}") : raise Exception("Activity exist!")
+
+            # Write
+            with open(f"{path}/{filename}", "wb") as f:
+                f.write(data)
+            downloadedIds.append(str(activityId))
+        
+        # At least one new item
+        if write:
+            with open('activityIdList.txt', 'w') as f:
+                f.write("".join(f"{id}\n" for id in downloadedIds))
+
+    except (GarminConnectConnectionError, GarminConnectAuthenticationError) as e:
+        print(f"Chyba připojení: {e}")
 
 # Přihlašovací údaje
-EMAIL = os.getenv("GARMIN_EMAIL")
-PASSWORD = os.getenv("GARMIN_PASSWORD")
-NEXTCLOUD_URL = os.getenv("NEXTCLOUD_URL")  # např. https://cloud.example.com/remote.php/webdav/Garmin/
-NEXTCLOUD_USER = os.getenv("NEXTCLOUD_USER")
-NEXTCLOUD_PASS = os.getenv("NEXTCLOUD_PASS")
+EMAILS = os.getenv("GARMIN_EMAILS")             
+PASSWORDS = os.getenv("GARMIN_PASSWORDS")
+NEXTCLOUD_USER_PATHS = os.getenv("NEXTCLOUD_USER_PATHS")    #docker volume paths
 
 today = datetime.date.today()
 
-try:
-    client = Garmin(EMAIL, PASSWORD)
-    client.login()
-    activities = client.get_activities(0, 5)  # Získá posledních 5 aktivit
-
-    for activity in activities:
-        activity_id = activity["activityId"]
-        filename = f"{activity_id}.fit"
-
-        # Stáhne aktivitu
-        data = client.download_activity(activity_id, dl_fmt=client.ActivityDownloadFormat.ORIGINAL)
-        with open(filename, "wb") as f:
-            f.write(data)
-
-        # Nahraje do Nextcloudu
-        with open(filename, "rb") as f:
-            r = requests.put(
-                f"{NEXTCLOUD_URL}/{filename}",
-                auth=(NEXTCLOUD_USER, NEXTCLOUD_PASS),
-                data=f
-            )
-            print(f"Upload {filename}: {r.status_code}")
-
-except (GarminConnectConnectionError, GarminConnectAuthenticationError) as e:
-    print(f"Chyba připojení: {e}")
+for credentials in (EMAILS.split(';'), PASSWORDS.split(';'), NEXTCLOUD_USER_PATHS.split(';')):
+    processFitFiles(credentials)

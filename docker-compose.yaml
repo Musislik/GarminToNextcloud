@@ -4,9 +4,7 @@ services:
   garmin-to-nextcloud:
     build: .
     environment:
-      GARMIN_EMAIL: "email@example.com"
-      GARMIN_PASSWORD: "tvojeheslo"
-      NEXTCLOUD_URL: "https://cloud.example.com/remote.php/webdav/Garmin"
-      NEXTCLOUD_USER: "nextcloud_user"
-      NEXTCLOUD_PASS: "nextcloud_heslo"
+      GARMIN_EMAILS: "email1@example.com;email2@example.com"
+      GARMIN_PASSWORDS: "pass1;pass2"
+      NEXTCLOUD_USER_PATHS : "path/1;path/2"
     restart: unless-stopped
